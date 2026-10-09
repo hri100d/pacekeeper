@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/core",
+    "crates/fixed",
+    "crates/sliding-log",
+    "crates/sliding-counter",
+    "crates/bucket",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+pacekeeper-core = { path = "crates/core", version = "0.1.0" }
+pacekeeper-fixed = { path = "crates/fixed", version = "0.1.0" }
+pacekeeper-sliding-log = { path = "crates/sliding-log", version = "0.1.0" }
+pacekeeper-sliding-counter = { path = "crates/sliding-counter", version = "0.1.0" }
+pacekeeper-bucket = { path = "crates/bucket", version = "0.1.0" }
+
+[package]
+name = "pacekeeper"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+
+fixed = ["dep:pacekeeper-fixed"]
+sliding-log = ["dep:pacekeeper-sliding-log"]
+sliding-counter = ["dep:pacekeeper-sliding-counter"]
+bucket = ["dep:pacekeeper-bucket"]
+
+all = ["fixed", "sliding-log", "sliding-counter", "bucket"]
+
+[dependencies]
+pacekeeper-core.workspace = true
+
+pacekeeper-fixed = { workspace = true, optional = true }
+pacekeeper-sliding-log = { workspace = true, optional = true }
+pacekeeper-sliding-counter = { workspace = true, optional = true }
+pacekeeper-bucket = { workspace = true, optional = true }

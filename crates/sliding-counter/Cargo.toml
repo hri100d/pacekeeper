@@ -1,0 +1,7 @@
+[package]
+name = "pacekeeper-sliding-counter"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+pacekeeper-core.workspace = true

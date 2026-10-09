@@ -1,0 +1,4 @@
+[package]
+name = "pacekeeper-core"
+version.workspace = true
+edition.workspace = true
