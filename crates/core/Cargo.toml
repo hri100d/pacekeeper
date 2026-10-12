@@ -2,3 +2,6 @@
 name = "pacekeeper-core"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+num-traits.workspace = true

@@ -18,6 +18,7 @@ pacekeeper-fixed = { path = "crates/fixed", version = "0.1.0" }
 pacekeeper-sliding-log = { path = "crates/sliding-log", version = "0.1.0" }
 pacekeeper-sliding-counter = { path = "crates/sliding-counter", version = "0.1.0" }
 pacekeeper-bucket = { path = "crates/bucket", version = "0.1.0" }
+num-traits = "0.2"
 
 [package]
 name = "pacekeeper"
