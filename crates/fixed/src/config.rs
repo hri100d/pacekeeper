@@ -31,3 +31,32 @@ impl<T: Counter> FixedWindowConfig<T> {
         self.window
     }
 }
+
+#[cfg(test)]
+mod fixed_window_config_tests {
+    use super::*;
+
+    #[test]
+    fn reject_zero_limit() {
+        assert!(matches!(
+            FixedWindowConfig::new(0_u8, Duration::from_secs(1)),
+            Err(ConfigError::ZeroLimit)
+        ))
+    }
+
+    #[test]
+    fn rejects_zero_window() {
+        assert!(matches!(
+            FixedWindowConfig::new(1_u8, Duration::ZERO),
+            Err(ConfigError::ZeroWindow)
+        ))
+    }
+
+    #[test]
+    fn preserves_valid_configuration() {
+        let window = Duration::from_secs(60);
+        let config = FixedWindowConfig::new(100u32, window).unwrap();
+        assert_eq!(config.limit(), 100);
+        assert_eq!(config.window(), window);
+    }
+}
