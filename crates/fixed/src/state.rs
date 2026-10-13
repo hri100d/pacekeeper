@@ -1,29 +1,31 @@
 use std::time::{Duration, Instant};
 
-use pacekeeper_core::{Counter, Decision};
+use pacekeeper_core::{Counter, Decision, State};
 
-use crate::WindowError;
+use crate::WindowStateError;
 
 #[derive(Debug)]
-pub(crate) struct WindowStats<T: Counter = u64> {
+pub struct WindowState<T: Counter = u64> {
     pub(crate) started_at: Instant,
     pub(crate) accepted: T,
 }
 
-impl<T: Counter> WindowStats<T> {
-    pub fn new(now: Instant) -> Self {
+impl<T: Counter> State<T> for WindowState<T> {
+    type Error = WindowStateError;
+
+    fn new(now: Instant) -> Self {
         Self {
             started_at: now,
             accepted: T::zero(),
         }
     }
 
-    pub fn try_accept(
+    fn try_accept(
         &mut self,
         now: Instant,
         limit: T,
         window: Duration,
-    ) -> Result<Decision<T>, WindowError> {
+    ) -> Result<Decision<T>, Self::Error> {
         if now.duration_since(self.started_at) >= window {
             *self = Self::new(now);
         }
@@ -32,7 +34,7 @@ impl<T: Counter> WindowStats<T> {
 
         let reset_after = window
             .checked_sub(elapsed)
-            .ok_or(WindowError::DurationOverflow)?;
+            .ok_or(WindowStateError::DurationOverflow)?;
 
         if self.accepted >= limit {
             return Ok(Decision::Denied {
@@ -57,7 +59,7 @@ mod window_stats_tests {
     fn resets_at_the_exact_window_boundary() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
 
         state.try_accept(start, 1, window).unwrap();
 
@@ -76,7 +78,7 @@ mod window_stats_tests {
     fn allows_requests_until_limit() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
         let limit = 3_u8;
 
         for chance in 1..=limit {
@@ -96,7 +98,7 @@ mod window_stats_tests {
     fn denied_requests_do_not_consume_quota() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
         let limit = 1_u8;
 
         assert_eq!(
@@ -123,7 +125,7 @@ mod window_stats_tests {
     fn denies_just_before_window_boundary() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
         let limit = 1_u8;
 
         for chance in 1..=limit {
@@ -156,7 +158,7 @@ mod window_stats_tests {
     fn resets_after_long_idle_period() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
 
         assert!(matches!(
             state.try_accept(start, 1, window).unwrap(),
@@ -185,7 +187,7 @@ mod window_stats_tests {
     fn calculates_remaining_time_from_supplied_timestamp() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
 
         state.try_accept(start, 2, window).unwrap();
 
@@ -210,7 +212,7 @@ mod window_stats_tests {
     fn handles_maximum_counter_without_overflow() {
         let start = Instant::now();
         let window = Duration::from_secs(60);
-        let mut state = WindowStats::<u8>::new(start);
+        let mut state = WindowState::<u8>::new(start);
         let limit = u8::MAX;
 
         for accepted in 1..=limit {

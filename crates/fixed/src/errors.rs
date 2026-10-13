@@ -1,37 +1,22 @@
-use std::sync::PoisonError;
+use std::{error::Error, fmt};
+
+use pacekeeper_core::RateLimiterError;
 
 #[derive(Debug)]
-pub enum WindowError {
+pub enum WindowStateError {
     DurationOverflow,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConfigError {
-    ZeroLimit,
-    ZeroWindow,
-}
-
-#[derive(Debug)]
-pub enum FixedWindowError {
-    StateUnavailable,
-    WindowError(WindowError),
-    ConfigError(ConfigError),
-}
-
-impl From<WindowError> for FixedWindowError {
-    fn from(error: WindowError) -> Self {
-        Self::WindowError(error)
+impl fmt::Display for WindowStateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::DurationOverflow => {
+                write!(f, "elapsed time exceeds the fixed window duration")
+            }
+        }
     }
 }
 
-impl From<ConfigError> for FixedWindowError {
-    fn from(error: ConfigError) -> Self {
-        Self::ConfigError(error)
-    }
-}
+impl Error for WindowStateError {}
 
-impl<T> From<PoisonError<T>> for FixedWindowError {
-    fn from(_: PoisonError<T>) -> Self {
-        Self::StateUnavailable
-    }
-}
+pub type FixedWindowError = RateLimiterError<WindowStateError>;

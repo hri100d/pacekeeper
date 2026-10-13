@@ -1,8 +1,7 @@
-mod config;
 mod errors;
 mod limiter;
 mod state;
 
-pub use config::FixedWindowConfig;
-pub use errors::{ConfigError, FixedWindowError, WindowError};
+pub use errors::{FixedWindowError, WindowStateError};
 pub use limiter::FixedRateLimiter;
+pub use state::WindowState;

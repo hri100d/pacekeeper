@@ -4,8 +4,8 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use pacekeeper_core::Decision;
-use pacekeeper_fixed::{FixedRateLimiter, FixedWindowConfig};
+use pacekeeper_core::{Decision, RateLimiter, WindowConfig};
+use pacekeeper_fixed::FixedRateLimiter;
 
 #[test]
 fn supports_borrowed_string_keys() {
@@ -199,7 +199,7 @@ fn increasing_limit_preserves_usage() {
     }
 
     limiter
-        .update_config(FixedWindowConfig::new(5, window).unwrap())
+        .update_config(WindowConfig::new(5, window).unwrap())
         .unwrap();
 
     assert_eq!(limiter.config().unwrap().limit(), 5);
@@ -236,7 +236,7 @@ fn decreasing_limit_preserves_usage() {
     }
 
     limiter
-        .update_config(FixedWindowConfig::new(2, window).unwrap())
+        .update_config(WindowConfig::new(2, window).unwrap())
         .unwrap();
 
     assert_eq!(
@@ -267,7 +267,7 @@ fn extending_window_preserves_start_and_usage() {
     ));
 
     limiter
-        .update_config(FixedWindowConfig::new(1, extended).unwrap())
+        .update_config(WindowConfig::new(1, extended).unwrap())
         .unwrap();
 
     assert_eq!(limiter.config().unwrap().window(), extended);
@@ -301,7 +301,7 @@ fn shortening_window_can_expire_existing_state() {
     let shortened = Duration::from_secs(30);
 
     limiter
-        .update_config(FixedWindowConfig::new(1, shortened).unwrap())
+        .update_config(WindowConfig::new(1, shortened).unwrap())
         .unwrap();
 
     let now = start + Duration::from_secs(40);
@@ -368,7 +368,7 @@ fn shared_limiter_enforces_limit_under_concurrency() {
 #[test]
 fn automatic_clock_supports_normal_acquisition() {
     let window = Duration::from_secs(60);
-    let config = FixedWindowConfig::new(3u64, window).unwrap();
+    let config = WindowConfig::new(3u64, window).unwrap();
     let limiter = FixedRateLimiter::<String>::new_with_config(config);
 
     match limiter.try_acquire("a").unwrap() {
