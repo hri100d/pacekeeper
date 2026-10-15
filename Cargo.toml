@@ -32,6 +32,15 @@ fixed = ["dep:pacekeeper-fixed"]
 sliding-log = ["dep:pacekeeper-sliding-log"]
 sliding-counter = ["dep:pacekeeper-sliding-counter"]
 bucket = ["dep:pacekeeper-bucket"]
+bucket-redis = [
+    "bucket",
+    "pacekeeper-bucket/redis",
+]
+
+bucket-redis-cluster = [
+    "bucket-redis",
+    "pacekeeper-bucket/redis-cluster",
+]
 
 all = ["fixed", "sliding-log", "sliding-counter", "bucket"]
 

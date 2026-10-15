@@ -5,3 +5,12 @@ edition.workspace = true
 
 [dependencies]
 pacekeeper-core.workspace = true
+redis = { version = "1.7", optional = true, default-features = false }
+
+[features]
+default = []
+redis = ["dep:redis", "redis/tokio-comp", "redis/connection-manager", "redis/script"]
+redis-cluster = ["redis", "redis/cluster-async"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
