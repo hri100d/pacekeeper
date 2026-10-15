@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use pacekeeper_core::{Decision, RateLimiter, RateLimiterError, WindowConfig};
+use pacekeeper_core::{Decision, RateLimiterError, WindowConfig};
 use pacekeeper_sliding_log::{SlidingLogRateLimiter, WindowStateError};
 
 const WINDOW: Duration = Duration::from_secs(60);

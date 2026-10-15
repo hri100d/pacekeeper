@@ -7,18 +7,8 @@ use pacekeeper_core::{Counter, Decision, State, WindowConfig};
 
 use crate::WindowStateError;
 
-pub struct WindowState {
+pub(crate) struct WindowState {
     pub(crate) accepted_at: VecDeque<Instant>,
-}
-
-impl WindowState {
-    pub fn with_capacity<T: Counter>(limit: T) -> Result<Self, WindowStateError> {
-        let capacity = limit.to_usize().ok_or(WindowStateError::CounterOverflow)?;
-
-        Ok(Self {
-            accepted_at: VecDeque::with_capacity(capacity),
-        })
-    }
 }
 
 impl<T: Counter> State<T> for WindowState {
@@ -282,24 +272,6 @@ mod window_state_tests {
         }
 
         assert_eq!(state.accepted_at.len(), usize::from(u8::MAX));
-    }
-
-    #[test]
-    fn capacity_constructor_reserves_space_without_counting_a_request() {
-        let state = WindowState::with_capacity(3u16).unwrap();
-
-        assert!(state.accepted_at.is_empty());
-        assert!(state.accepted_at.capacity() >= 3);
-    }
-
-    #[test]
-    fn capacity_constructor_rejects_limits_larger_than_usize() {
-        let limit = usize::MAX as u128 + 1;
-
-        assert!(matches!(
-            WindowState::with_capacity(limit),
-            Err(WindowStateError::CounterOverflow)
-        ));
     }
 
     #[test]

@@ -1,4 +1,8 @@
-pub use pacekeeper_core as common;
+pub mod common {
+    pub use pacekeeper_core::{
+        ConfigError, Counter, Decision, Key, LookupKey, RateLimiter, RateLimiterError, WindowConfig,
+    };
+}
 
 #[cfg(feature = "fixed")]
 pub use pacekeeper_fixed as fixed;
@@ -9,5 +13,9 @@ pub use pacekeeper_sliding_log as sliding_log;
 #[cfg(feature = "sliding-counter")]
 pub use pacekeeper_sliding_counter as sliding_counter;
 
-#[cfg(feature = "bucket")]
+#[cfg(any(
+    feature = "bucket",
+    feature = "bucket-redis",
+    feature = "bucket-redis-cluster",
+))]
 pub use pacekeeper_bucket as bucket;

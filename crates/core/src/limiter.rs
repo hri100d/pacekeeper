@@ -1,11 +1,11 @@
 use std::{
     borrow::Borrow,
-    collections::HashMap,
-    sync::Mutex,
     time::{Duration, Instant},
 };
 
-use crate::{Counter, Decision, Key, LookupKey, RateLimiterError, State, WindowConfig};
+use crate::{
+    Counter, Decision, InMemoryLimiter, Key, LookupKey, RateLimiterError, State, WindowConfig,
+};
 
 pub trait RateLimiter<Q: ?Sized, T: Counter> {
     type Error;
@@ -18,12 +18,7 @@ pub trait RateLimiter<Q: ?Sized, T: Counter> {
 }
 
 pub struct InMemoryWindowLimiter<K: Key, T: Counter, S: State<T>> {
-    inner: Mutex<Inner<K, T, S>>,
-}
-
-struct Inner<K, T: Counter, S> {
-    config: WindowConfig<T>,
-    windows: HashMap<K, S>,
+    inner: InMemoryLimiter<K, WindowConfig<T>, S>,
 }
 
 impl<K, T, S> InMemoryWindowLimiter<K, T, S>
@@ -38,56 +33,44 @@ where
 
     pub fn new_with_config(config: WindowConfig<T>) -> Self {
         Self {
-            inner: Mutex::new(Inner {
-                config,
-                windows: HashMap::new(),
-            }),
+            inner: InMemoryLimiter::new_with_config(config),
         }
     }
 
-    fn acquire_with_clock<Q>(
+    pub fn config(&self) -> Result<WindowConfig<T>, RateLimiterError<S::Error>> {
+        self.inner.config().map_err(Into::into)
+    }
+
+    pub fn update_config(&self, config: WindowConfig<T>) -> Result<(), RateLimiterError<S::Error>> {
+        self.inner.update_config(config).map_err(Into::into)
+    }
+
+    pub fn try_acquire<Q>(&self, key: &Q) -> Result<Decision<T>, RateLimiterError<S::Error>>
+    where
+        K: Borrow<Q>,
+        Q: LookupKey<K> + ?Sized,
+    {
+        self.inner.try_acquire(key).map_err(Into::into)
+    }
+
+    pub fn try_acquire_at<Q>(
         &self,
         key: &Q,
-        read_time: impl FnOnce() -> Instant,
+        now: Instant,
     ) -> Result<Decision<T>, RateLimiterError<S::Error>>
     where
         K: Borrow<Q>,
         Q: LookupKey<K> + ?Sized,
     {
-        let mut inner = self.inner.lock()?;
-        let now = read_time();
-
-        let limit = inner.config.limit();
-        let window = inner.config.window();
-
-        if let Some(state) = inner.windows.get_mut(key) {
-            return state
-                .try_accept(now, limit, window)
-                .map_err(RateLimiterError::StateError);
-        }
-
-        let state = inner
-            .windows
-            .entry(key.to_owned())
-            .or_insert_with(|| S::new(now));
-
-        state
-            .try_accept(now, limit, window)
-            .map_err(RateLimiterError::StateError)
+        self.inner.try_acquire_at(key, now).map_err(Into::into)
     }
 
-    pub fn config(&self) -> Result<WindowConfig<T>, RateLimiterError<S::Error>> {
-        Ok(self.inner.lock()?.config.clone())
-    }
-
-    pub fn update_config(&self, config: WindowConfig<T>) -> Result<(), RateLimiterError<S::Error>> {
-        let mut inner = self.inner.lock()?;
-
-        S::validate_config_change(&inner.config, &config).map_err(RateLimiterError::StateError)?;
-
-        inner.config = config;
-
-        Ok(())
+    pub fn remove_key<Q>(&self, key: &Q) -> Result<bool, RateLimiterError<S::Error>>
+    where
+        K: Borrow<Q>,
+        Q: Key + ?Sized,
+    {
+        self.inner.remove_key(key).map_err(Into::into)
     }
 }
 
@@ -101,15 +84,15 @@ where
     type Error = RateLimiterError<S::Error>;
 
     fn try_acquire(&self, key: &Q) -> Result<Decision<T>, Self::Error> {
-        self.acquire_with_clock(key, Instant::now)
+        InMemoryWindowLimiter::try_acquire(self, key)
     }
 
     fn try_acquire_at(&self, key: &Q, now: Instant) -> Result<Decision<T>, Self::Error> {
-        self.acquire_with_clock(key, || now)
+        InMemoryWindowLimiter::try_acquire_at(self, key, now)
     }
 
     fn remove_key(&self, key: &Q) -> Result<bool, Self::Error> {
-        Ok(self.inner.lock()?.windows.remove(key).is_some())
+        InMemoryWindowLimiter::remove_key(self, key)
     }
 }
 
@@ -237,7 +220,7 @@ mod limiter_tests {
             }
         );
 
-        let inner = limiter.inner.lock().unwrap();
+        let inner = limiter.inner.inner.lock().unwrap();
         let state = inner.windows.get("a").unwrap();
 
         assert_eq!(state.created_at, start);
@@ -252,11 +235,12 @@ mod limiter_tests {
         let mut reads = 0;
 
         limiter
+            .inner
             .acquire_with_clock("a", || {
                 reads += 1;
 
                 assert!(matches!(
-                    limiter.inner.try_lock(),
+                    limiter.inner.inner.try_lock(),
                     Err(TryLockError::WouldBlock)
                 ));
 
@@ -266,7 +250,7 @@ mod limiter_tests {
 
         assert_eq!(reads, 1);
 
-        let inner = limiter.inner.lock().unwrap();
+        let inner = limiter.inner.inner.lock().unwrap();
         assert_eq!(inner.windows.get("a").unwrap().created_at, now);
     }
 
@@ -312,7 +296,7 @@ mod limiter_tests {
         let limiter = Limiter::new(3, window).unwrap();
 
         let panic = catch_unwind(AssertUnwindSafe(|| {
-            let _guard = limiter.inner.lock().unwrap();
+            let _guard = limiter.inner.inner.lock().unwrap();
             panic!("deliberately poison the mutex");
         }));
 

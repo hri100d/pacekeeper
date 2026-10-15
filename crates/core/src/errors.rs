@@ -65,3 +65,38 @@ impl<E, G> From<PoisonError<G>> for RateLimiterError<E> {
         Self::StateUnavailable
     }
 }
+
+#[derive(Debug)]
+pub enum InMemoryError<E> {
+    StateUnavailable,
+    StateError(E),
+}
+
+impl<E: fmt::Display> fmt::Display for InMemoryError<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StateUnavailable => f.write_str("rate limiter state lock is poisoned"),
+            Self::StateError(error) => {
+                write!(f, "rate limiter state error: {error}")
+            }
+        }
+    }
+}
+
+impl<E: Error + 'static> Error for InMemoryError<E> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::StateUnavailable => None,
+            Self::StateError(error) => Some(error),
+        }
+    }
+}
+
+impl<E> From<InMemoryError<E>> for RateLimiterError<E> {
+    fn from(error: InMemoryError<E>) -> Self {
+        match error {
+            InMemoryError::StateUnavailable => Self::StateUnavailable,
+            InMemoryError::StateError(error) => Self::StateError(error),
+        }
+    }
+}

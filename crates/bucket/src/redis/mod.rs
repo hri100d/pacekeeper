@@ -2,4 +2,4 @@ mod commands;
 mod connection;
 mod limiter;
 
-pub use limiter::RedisTokenBucket;
+pub use limiter::{RedisOptions, RedisTokenBucket};

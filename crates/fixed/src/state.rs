@@ -5,7 +5,7 @@ use pacekeeper_core::{Counter, Decision, State};
 use crate::WindowStateError;
 
 #[derive(Debug)]
-pub struct WindowState<T: Counter = u64> {
+pub(crate) struct WindowState<T: Counter = u64> {
     pub(crate) started_at: Instant,
     pub(crate) accepted: T,
 }

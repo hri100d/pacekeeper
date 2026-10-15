@@ -7,7 +7,6 @@ pub enum ConfigError {
     ZeroRefillPeriod,
     SubmicrosecondPrecision,
     PeriodTooLarge,
-    CapacityTooLarge,
     CreditOverflow,
     CreditOutOfRange,
     RefillOutOfRange,
@@ -21,7 +20,7 @@ pub enum BucketError {
     ConfigMismatch,
     InvalidRedisState,
     InvalidRedisResponse,
-    #[cfg(feature = "redis")]
+    #[cfg(any(feature = "redis", feature = "redis-cluster"))]
     Redis(::redis::RedisError),
 }
 
@@ -31,10 +30,10 @@ impl fmt::Display for BucketError {
             Self::InvalidConfig(message) => write!(f, "invalid bucket config: {message}"),
             Self::StateUnavailable => f.write_str("bucket state lock is poisoned"),
             Self::ClockWentBackwards => f.write_str("time moved backwards for this key"),
-            Self::ConfigMismatch => f.write_str("the Redis bucket already has a different config"),
+            Self::ConfigMismatch => f.write_str("the bucket already has a different configuration"),
             Self::InvalidRedisState => f.write_str("invalid or unsupported Redis bucket state"),
             Self::InvalidRedisResponse => f.write_str("unexpected Redis bucket response"),
-            #[cfg(feature = "redis")]
+            #[cfg(any(feature = "redis", feature = "redis-cluster"))]
             Self::Redis(error) => write!(f, "Redis operation failed: {error}"),
         }
     }
@@ -45,7 +44,7 @@ impl Error for BucketError {
         match self {
             Self::InvalidConfig(error) => Some(error),
 
-            #[cfg(feature = "redis")]
+            #[cfg(any(feature = "redis", feature = "redis-cluster"))]
             Self::Redis(error) => Some(error),
 
             _ => None,
@@ -61,7 +60,6 @@ impl fmt::Display for ConfigError {
             Self::ZeroRefillPeriod => "refill period must be positive",
             Self::SubmicrosecondPrecision => "refill period must use whole microseconds",
             Self::PeriodTooLarge => "refill period does not fit in u64 microseconds",
-            Self::CapacityTooLarge => "capacity exceeds the supported range",
             Self::CreditOverflow => "capacity multiplied by period overflows u64",
             Self::CreditOutOfRange => "scaled capacity exceeds the supported range",
             Self::RefillOutOfRange => "refill tokens exceed the supported range",
@@ -85,9 +83,25 @@ impl From<ConfigError> for BucketError {
     }
 }
 
-#[cfg(feature = "redis")]
+#[cfg(any(feature = "redis", feature = "redis-cluster"))]
 impl From<::redis::RedisError> for BucketError {
     fn from(error: ::redis::RedisError) -> Self {
-        Self::Redis(error)
+        match error.code() {
+            Some("PACEKEEPER_CONFIG_MISMATCH") => Self::ConfigMismatch,
+            Some("PACEKEEPER_INVALID_STATE") => Self::InvalidRedisState,
+            Some("PACEKEEPER_CLOCK_BACKWARDS") => Self::ClockWentBackwards,
+            _ => Self::Redis(error),
+        }
+    }
+}
+
+#[cfg(feature = "memory")]
+impl From<pacekeeper_core::InMemoryError<BucketError>> for BucketError {
+    fn from(error: pacekeeper_core::InMemoryError<BucketError>) -> Self {
+        match error {
+            pacekeeper_core::InMemoryError::StateUnavailable => Self::StateUnavailable,
+
+            pacekeeper_core::InMemoryError::StateError(error) => error,
+        }
     }
 }

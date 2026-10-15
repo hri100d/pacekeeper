@@ -3,5 +3,4 @@ mod limiter;
 mod state;
 
 pub use errors::{SlidingCounterWindowError, WindowStateError};
-pub use limiter::SlidingCounterRateLimiter;
-pub use state::WindowState;
+pub use limiter::Limiter as SlidingCounterRateLimiter;

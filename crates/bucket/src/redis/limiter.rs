@@ -15,14 +15,41 @@ pub struct RedisTokenBucket<C: BucketCounter = u64, R: BucketCounter = u64> {
 }
 
 impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
+    #[cfg(feature = "redis")]
     pub async fn connect(
         url: &str,
         namespace: &str,
         config: BucketConfig<C, R>,
     ) -> Result<Self, BucketError> {
+        Self::connect_with_options(url, namespace, config, RedisOptions::default()).await
+    }
+
+    #[cfg(feature = "redis-cluster")]
+    pub async fn connect_cluster(
+        seed_urls: Vec<String>,
+        namespace: &str,
+        config: BucketConfig<C, R>,
+    ) -> Result<Self, BucketError> {
+        Self::connect_cluster_with_options(seed_urls, namespace, config, RedisOptions::default())
+            .await
+    }
+
+    #[cfg(feature = "redis")]
+    pub async fn connect_with_options(
+        url: &str,
+        namespace: &str,
+        config: BucketConfig<C, R>,
+        options: RedisOptions,
+    ) -> Result<Self, BucketError> {
         let client = ::redis::Client::open(url)?;
 
-        let connection = client.get_connection_manager().await?;
+        let manager_config = ::redis::aio::ConnectionManagerConfig::new()
+            .set_connection_timeout(Some(options.connection_timeout))
+            .set_response_timeout(Some(options.response_timeout));
+
+        let connection = client
+            .get_connection_manager_with_config(manager_config)
+            .await?;
 
         Ok(Self::from_connection(
             RedisConnection::Standalone(connection),
@@ -32,12 +59,16 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
     }
 
     #[cfg(feature = "redis-cluster")]
-    pub async fn connect_cluster(
+    pub async fn connect_cluster_with_options(
         seed_urls: Vec<String>,
         namespace: &str,
         config: BucketConfig<C, R>,
+        options: RedisOptions,
     ) -> Result<Self, BucketError> {
-        let client = ::redis::cluster::ClusterClient::new(seed_urls)?;
+        let client = ::redis::cluster::ClusterClient::builder(seed_urls)
+            .connection_timeout(options.connection_timeout)
+            .response_timeout(options.response_timeout)
+            .build()?;
 
         let connection = client.get_async_connection().await?;
 
@@ -124,5 +155,20 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
 
     fn redis_key(&self, key: &str) -> String {
         format!("{}{key}", self.prefix)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RedisOptions {
+    pub connection_timeout: Duration,
+    pub response_timeout: Duration,
+}
+
+impl Default for RedisOptions {
+    fn default() -> Self {
+        Self {
+            connection_timeout: Duration::from_secs(5),
+            response_timeout: Duration::from_secs(5),
+        }
     }
 }

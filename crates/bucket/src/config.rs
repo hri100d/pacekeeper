@@ -73,7 +73,10 @@ impl<C: BucketCounter, R: BucketCounter> BucketConfig<C, R> {
     pub fn refill_period(&self) -> Duration {
         self.refill_period
     }
+}
 
+#[cfg(any(feature = "memory", feature = "redis", feature = "redis-cluster"))]
+impl<C: BucketCounter, R: BucketCounter> BucketConfig<C, R> {
     pub(crate) fn refill_tokens_u64(&self) -> u64 {
         self.refill_tokens.into()
     }

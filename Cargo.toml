@@ -17,7 +17,11 @@ pacekeeper-core = { path = "crates/core", version = "0.1.0" }
 pacekeeper-fixed = { path = "crates/fixed", version = "0.1.0" }
 pacekeeper-sliding-log = { path = "crates/sliding-log", version = "0.1.0" }
 pacekeeper-sliding-counter = { path = "crates/sliding-counter", version = "0.1.0" }
-pacekeeper-bucket = { path = "crates/bucket", version = "0.1.0" }
+pacekeeper-bucket = {
+    path = "crates/bucket",
+    version = "0.1.0",
+    default-features = false,
+}
 num-traits = "0.2"
 
 [package]
@@ -31,18 +35,30 @@ default = []
 fixed = ["dep:pacekeeper-fixed"]
 sliding-log = ["dep:pacekeeper-sliding-log"]
 sliding-counter = ["dep:pacekeeper-sliding-counter"]
-bucket = ["dep:pacekeeper-bucket"]
+
+bucket = [
+    "dep:pacekeeper-bucket",
+    "pacekeeper-bucket/memory",
+]
+
 bucket-redis = [
-    "bucket",
+    "dep:pacekeeper-bucket",
     "pacekeeper-bucket/redis",
 ]
 
 bucket-redis-cluster = [
-    "bucket-redis",
+    "dep:pacekeeper-bucket",
     "pacekeeper-bucket/redis-cluster",
 ]
 
-all = ["fixed", "sliding-log", "sliding-counter", "bucket"]
+all = [
+    "fixed",
+    "sliding-log",
+    "sliding-counter",
+    "bucket",
+    "bucket-redis",
+    "bucket-redis-cluster",
+]
 
 [dependencies]
 pacekeeper-core.workspace = true

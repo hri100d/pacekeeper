@@ -2,6 +2,7 @@
 name = "pacekeeper-fixed"
 version.workspace = true
 edition.workspace = true
+exclude = ["/tests"]
 
 [dependencies]
 pacekeeper-core.workspace = true

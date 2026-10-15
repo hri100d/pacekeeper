@@ -2,6 +2,7 @@
 name = "pacekeeper-bucket"
 version.workspace = true
 edition.workspace = true
+exclude = ["/tests"]
 
 [dependencies]
 pacekeeper-core.workspace = true
@@ -9,8 +10,23 @@ redis = { version = "1.7", optional = true, default-features = false }
 
 [features]
 default = []
-redis = ["dep:redis", "redis/tokio-comp", "redis/connection-manager", "redis/script"]
-redis-cluster = ["redis", "redis/cluster-async"]
+
+memory = []
+
+redis = [
+    "dep:redis",
+    "redis?/tokio-comp",
+    "redis?/connection-manager",
+    "redis?/script",
+]
+
+redis-cluster = [
+    "dep:redis",
+    "redis?/tokio-comp",
+    "redis?/cluster-async",
+    "redis?/script",
+]
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+testcontainers = "0.28"

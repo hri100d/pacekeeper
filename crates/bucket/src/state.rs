@@ -73,3 +73,33 @@ impl BucketState {
         })
     }
 }
+
+impl<C: BucketCounter, R: BucketCounter> pacekeeper_core::InMemoryState<BucketConfig<C, R>>
+    for BucketState
+{
+    type Counter = C;
+    type Error = BucketError;
+
+    fn new(config: &BucketConfig<C, R>, now: Instant) -> Self {
+        BucketState::new(config, now)
+    }
+
+    fn try_accept(
+        &mut self,
+        now: Instant,
+        config: &BucketConfig<C, R>,
+    ) -> Result<Decision<C>, Self::Error> {
+        BucketState::try_accept(self, now, config)
+    }
+
+    fn validate_config_change(
+        current: &BucketConfig<C, R>,
+        next: &BucketConfig<C, R>,
+    ) -> Result<(), Self::Error> {
+        if current != next {
+            return Err(BucketError::ConfigMismatch);
+        }
+
+        Ok(())
+    }
+}

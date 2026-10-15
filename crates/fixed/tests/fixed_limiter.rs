@@ -4,7 +4,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use pacekeeper_core::{Decision, RateLimiter, WindowConfig};
+use pacekeeper_core::{Decision, WindowConfig};
 use pacekeeper_fixed::FixedRateLimiter;
 
 #[test]
