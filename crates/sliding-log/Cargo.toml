@@ -2,6 +2,11 @@
 name = "pacekeeper-sliding-log"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "An in-memory sliding-window log rate limiter"
+readme = "README.md"
+keywords = ["rate-limiting", "rate-limiter", "sliding-window"]
 exclude = ["/tests"]
 
 [dependencies]

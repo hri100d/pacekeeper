@@ -8,6 +8,17 @@ use super::{commands::RedisCommandFactory, connection::RedisConnection};
 
 const REDIS_KEY_PREFIX: &str = "pacekeeper:bucket:v1";
 
+/// An asynchronous Redis-backed token bucket.
+///
+/// Available with `redis` or `redis-cluster`.
+///
+/// Instances using the same Redis deployment, namespace, and key share
+/// usage. Their configurations must match while the bucket key exists.
+///
+/// Acquisition uses Redis server time and an atomic Lua script.
+/// Redis errors are returned without automatic fallback to another backend.
+///
+/// Create the limiter once and reuse its connection.
 pub struct RedisTokenBucket<C: BucketCounter = u64, R: BucketCounter = u64> {
     connection: RedisConnection,
     commands: RedisCommandFactory<C, R>,
@@ -15,6 +26,17 @@ pub struct RedisTokenBucket<C: BucketCounter = u64, R: BucketCounter = u64> {
 }
 
 impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
+    /// Connects to standalone Redis using default connection options.
+    ///
+    /// Available with the `redis` feature. Requires a Tokio runtime.
+    ///
+    /// `namespace` separates this policy's keys from other policies.
+    /// The connection is established before this method returns.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the URL is invalid or the connection cannot be
+    /// established.
     #[cfg(feature = "redis")]
     pub async fn connect(
         url: &str,
@@ -24,6 +46,18 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
         Self::connect_with_options(url, namespace, config, RedisOptions::default()).await
     }
 
+    /// Connects to an existing Redis Cluster using default connection options.
+    ///
+    /// Available with the `redis-cluster` feature. Requires a Tokio runtime.
+    ///
+    /// Seed URLs identify initial nodes used to discover the cluster.
+    /// Discovered node addresses must be reachable by the application.
+    /// This method does not create or configure a Redis Cluster.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the seed configuration is invalid or the cluster
+    /// connection cannot be established.
     #[cfg(feature = "redis-cluster")]
     pub async fn connect_cluster(
         seed_urls: Vec<String>,
@@ -34,6 +68,14 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
             .await
     }
 
+    /// Connects to standalone Redis with explicit timeout options.
+    ///
+    /// Available with the `redis` feature. Requires a Tokio runtime.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the URL is invalid or the connection cannot be
+    /// established.
     #[cfg(feature = "redis")]
     pub async fn connect_with_options(
         url: &str,
@@ -58,6 +100,14 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
         ))
     }
 
+    /// Connects to an existing Redis Cluster with explicit timeout options.
+    ///
+    /// Available with the `redis-cluster` feature. Requires a Tokio runtime.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the seed configuration is invalid or the cluster
+    /// connection cannot be established.
     #[cfg(feature = "redis-cluster")]
     pub async fn connect_cluster_with_options(
         seed_urls: Vec<String>,
@@ -91,6 +141,24 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
         }
     }
 
+    /// Atomically attempts to consume one token for a key.
+    ///
+    /// A missing bucket starts full. Refill, admission, state updates, and
+    /// expiration are handled by the Lua script.
+    ///
+    /// An allowed decision's `reset_after` is the time until full capacity.
+    /// A denied decision's `retry_after` is the time until one token is available.
+    ///
+    /// The script is invoked with `EVALSHA`, falling back to `EVAL` when the
+    /// owning Redis node does not have it cached.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for configuration mismatch, invalid stored state,
+    /// backwards server time, an unexpected response, or a Redis failure.
+    ///
+    /// A connection error or timeout does not prove the token was not consumed.
+    /// Retrying may consume another token.
     pub async fn try_acquire(&self, key: &str) -> Result<Decision<C>, BucketError> {
         let redis_key = self.redis_key(key);
         let command = self.commands.evalsha(&redis_key);
@@ -140,10 +208,21 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
         }
     }
 
+    /// Returns the configuration supplied when this limiter was created.
+    ///
+    /// This reads local configuration and does not query Redis.
     pub fn config(&self) -> BucketConfig<C, R> {
         self.commands.config()
     }
 
+    /// Deletes the shared bucket for this namespace and key.
+    ///
+    /// Returns whether a key was deleted. The next acquisition starts from a
+    /// full bucket. Removal affects all instances sharing this bucket.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Redis operation fails.
     pub async fn remove_key(&self, key: &str) -> Result<bool, BucketError> {
         let redis_key = self.redis_key(key);
         let command = self.commands.delete(&redis_key);
@@ -158,9 +237,17 @@ impl<C: BucketCounter, R: BucketCounter> RedisTokenBucket<C, R> {
     }
 }
 
+/// Timeout settings passed to the Redis client.
+///
+/// Both values default to five seconds.
+/// These configure client operations, not a guaranteed total deadline
+/// across every retry or connection attempt.
 #[derive(Debug, Clone, Copy)]
 pub struct RedisOptions {
+    /// Timeout configured for establishing a connection.
     pub connection_timeout: Duration,
+
+    /// Timeout configured for receiving a command response.
     pub response_timeout: Duration,
 }
 

@@ -7,16 +7,40 @@ use crate::{
     Counter, Decision, InMemoryLimiter, Key, LookupKey, RateLimiterError, State, WindowConfig,
 };
 
+/// A synchronous interface for keyed rate limiting.
+///
+/// `Q` is the lookup type, which may be unsized, such as `str`.
+/// `T` is the counter type used in returned decisions.
+///
+/// Implementations define their own algorithm and error type.
+/// Asynchronous Redis limiters do not implement this trait.
 pub trait RateLimiter<Q: ?Sized, T: Counter> {
+    /// An error encountered while accessing or evaluating limiter state.
     type Error;
 
+    /// Attempts to acquire one allowance using the implementation's clock.
+    ///
+    /// An allowed result has already consumed that allowance.
     fn try_acquire(&self, key: &Q) -> Result<Decision<T>, Self::Error>;
 
+    /// Attempts to acquire one allowance at an explicit timestamp.
+    ///
+    /// Supply nondecreasing timestamps for each key in processing order.
+    /// Do not mix simulated future timestamps with automatic clock calls
+    /// for the same key.
     fn try_acquire_at(&self, key: &Q, now: Instant) -> Result<Decision<T>, Self::Error>;
 
+    /// Removes the key's stored usage.
+    ///
+    /// Returns `true` if an entry existed. A subsequent acquisition uses
+    /// fresh algorithm state.
     fn remove_key(&self, key: &Q) -> Result<bool, Self::Error>;
 }
 
+/// An in-memory engine specialized for window-based algorithms.
+///
+/// Wraps `InMemoryLimiter` with `WindowConfig` and a `State` implementation.
+/// Algorithm crates generally expose a concrete wrapper around this type.
 pub struct InMemoryWindowLimiter<K: Key, T: Counter, S: State<T>> {
     inner: InMemoryLimiter<K, WindowConfig<T>, S>,
 }

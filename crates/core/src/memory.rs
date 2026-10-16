@@ -2,6 +2,16 @@ use std::{borrow::Borrow, collections::HashMap, sync::Mutex, time::Instant};
 
 use crate::{Decision, InMemoryError, InMemoryState, Key, LookupKey};
 
+/// A mutex-protected map of per-key algorithm states.
+///
+/// Intended for implementing synchronous in-memory limiters.
+/// `S` defines state initialization, acquisition, and configuration-change
+/// validation through `InMemoryState`.
+///
+/// All keys share one mutex. Existing-key lookups avoid creating another
+/// owned key. Entries are retained until explicitly removed.
+///
+/// Configuration updates preserve existing states.
 pub struct InMemoryLimiter<K, Config, S> {
     pub(crate) inner: Mutex<Inner<K, Config, S>>,
 }

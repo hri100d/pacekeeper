@@ -1,3 +1,14 @@
+//! Shared configuration, decisions, traits, and in-memory engines.
+//!
+//! Applications usually use an algorithm crate or the `pacekeeper`
+//! entry-point crate. Custom algorithms can implement `State` or
+//! `InMemoryState` and reuse the corresponding engine.
+//!
+//! `RateLimiter` describes synchronous limiters. Asynchronous Redis
+//! implementations use their own inherent methods.
+//!
+//! Decision durations have algorithm-specific meanings.
+
 mod config;
 mod counter;
 mod decision;

@@ -2,7 +2,15 @@
 name = "pacekeeper-bucket"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Token-bucket rate limiting with in-memory, Redis, and Redis Cluster backends"
+readme = "README.md"
+keywords = ["rate-limiting", "rate-limiter", "token-bucket", "redis"]
 exclude = ["/tests"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 pacekeeper-core.workspace = true

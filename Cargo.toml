@@ -11,6 +11,8 @@ members = [
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/hri100d/pacekeeper"
 
 [workspace.dependencies]
 pacekeeper-core = { path = "crates/core", version = "0.1.0" }
@@ -28,6 +30,14 @@ num-traits = "0.2"
 name = "pacekeeper"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Configurable rate limiters with in-memory and Redis backends"
+readme = "README.md"
+keywords = ["rate-limiting", "rate-limiter", "redis", "token-bucket"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [features]
 default = []

@@ -1,25 +1,58 @@
 use std::{error::Error, fmt, sync::PoisonError};
 
+/// An invalid token-bucket configuration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConfigError {
+    /// Capacity was zero.
     ZeroCapacity,
+
+    /// Refill token count was zero.
     ZeroRefillTokens,
+
+    /// Refill period was zero.
     ZeroRefillPeriod,
+
+    /// Refill period was not a whole number of microseconds.
     SubmicrosecondPrecision,
+
+    /// Refill period did not fit in `u64` microseconds.
     PeriodTooLarge,
+
+    /// Capacity multiplied by the period overflowed `u64`.
     CreditOverflow,
+
+    /// Scaled capacity exceeded `2^52 - 1`.
     CreditOutOfRange,
+
+    /// Refill token count exceeded `2^52 - 1`.
     RefillOutOfRange,
 }
 
+/// A failure to configure or operate a token bucket.
+///
+/// Normal rate-limit rejection is represented by `Decision::Denied`,
+/// not by this error type.
 #[derive(Debug)]
 pub enum BucketError {
+    /// Configuration validation failed.
     InvalidConfig(ConfigError),
+
+    /// The in-memory state mutex was poisoned.
     StateUnavailable,
+
+    /// The supplied or server timestamp preceded stored state.
     ClockWentBackwards,
+
+    /// A configuration was incompatible with the existing bucket policy.
     ConfigMismatch,
+
+    /// Stored Redis bucket fields were missing or invalid.
     InvalidRedisState,
+
+    /// Redis returned a response that violated the expected format or bounds.
     InvalidRedisResponse,
+
+    /// An underlying Redis operation failed.
     #[cfg(any(feature = "redis", feature = "redis-cluster"))]
     Redis(::redis::RedisError),
 }

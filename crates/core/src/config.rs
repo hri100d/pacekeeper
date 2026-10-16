@@ -2,6 +2,11 @@ use std::time::Duration;
 
 use crate::{ConfigError, Counter};
 
+/// Validated configuration for a window-based rate limiter.
+///
+/// The limit and window duration are both nonzero.
+/// Algorithm-specific restrictions on configuration updates are checked
+/// by the limiter applying the configuration.
 #[derive(Debug, Clone)]
 pub struct WindowConfig<T: Counter = u64> {
     limit: T,
@@ -9,6 +14,12 @@ pub struct WindowConfig<T: Counter = u64> {
 }
 
 impl<T: Counter> WindowConfig<T> {
+    /// Creates a configuration with a positive limit and nonzero window.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError::ZeroLimit` when `limit` is zero.
+    /// Returns `ConfigError::ZeroWindow` when `window` is zero.
     pub fn new(limit: T, window: Duration) -> Result<Self, ConfigError> {
         if limit == T::zero() {
             return Err(ConfigError::ZeroLimit);
@@ -21,10 +32,12 @@ impl<T: Counter> WindowConfig<T> {
         Ok(Self { limit, window })
     }
 
+    /// Returns the configured request limit.
     pub fn limit(&self) -> T {
         self.limit
     }
 
+    /// Returns the configured window duration.
     pub fn window(&self) -> Duration {
         self.window
     }

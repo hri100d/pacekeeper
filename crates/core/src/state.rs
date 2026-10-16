@@ -2,6 +2,16 @@ use std::time::{Duration, Instant};
 
 use crate::{Counter, Decision, WindowConfig};
 
+/// Per-key state for a window-based rate-limiting algorithm.
+///
+/// `new` initializes state without consuming a request.
+/// The engine subsequently calls `try_accept` for the incoming request.
+///
+/// Configuration updates preserve states. Override
+/// `validate_config_change` to reject incompatible changes.
+///
+/// Implementations automatically receive an
+/// `InMemoryState<WindowConfig<T>>` implementation.
 pub trait State<T: Counter>: Sized {
     type Error;
 
@@ -22,6 +32,16 @@ pub trait State<T: Counter>: Sized {
     }
 }
 
+/// Per-key state used by the generic in-memory engine.
+///
+/// `new` initializes state without consuming a request.
+/// `try_accept` evaluates and records one acquisition.
+///
+/// Methods run while the engine's mutex is held. Avoid blocking I/O or
+/// re-entering the same limiter from these methods.
+///
+/// Override `validate_config_change` when existing state cannot safely
+/// interpret a different configuration. The default accepts all changes.
 pub trait InMemoryState<Config>: Sized {
     type Counter: Counter;
     type Error;

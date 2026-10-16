@@ -1,0 +1,120 @@
+# pacekeeper-sliding-counter
+
+An in-memory sliding-window counter rate limiter.
+
+The limiter approximates rolling-window usage using two counters:
+the current window's accepted requests and a weighted contribution from
+the previous window.
+
+## Installation
+
+```toml
+[dependencies]
+pacekeeper-sliding-counter = "0.1"
+pacekeeper-core = "0.1"
+```
+
+Alternatively, enable `sliding-counter` on the `pacekeeper` crate.
+
+## Example
+
+```rust
+use std::time::Duration;
+
+use pacekeeper_core::Decision;
+use pacekeeper_sliding_counter::SlidingCounterRateLimiter;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let limiter = SlidingCounterRateLimiter::<String>::new(
+        100,
+        Duration::from_secs(60),
+    )?;
+
+    match limiter.try_acquire("user:42")? {
+        Decision::Allowed { remaining, .. } => {
+            println!("Estimated remaining allowance: {remaining}");
+        }
+        Decision::Denied { retry_after } => {
+            println!("Retry in {retry_after:?}");
+        }
+    }
+
+    Ok(())
+}
+```
+
+## Calculation
+
+Let:
+
+- `W` be the window duration.
+- `E` be the elapsed time within the current window.
+- `C` be the current window's accepted count.
+- `P` be the previous window's accepted count.
+
+The limiter calculates:
+
+```text
+weighted_previous = ceil(P × (W - E) / W)
+estimated_usage = C + weighted_previous
+```
+
+It admits a request only when one additional request fits within the limit.
+
+Calculations use integer arithmetic. Rounding the previous contribution
+upward avoids discarding a fractional contribution, but the algorithm
+remains an approximation of a timestamp-based sliding log.
+
+For example, with a limit of one, a request accepted at the start of a
+window can prevent another request until two complete windows have elapsed.
+
+## Window behavior
+
+Window boundaries remain aligned to the key's initial window start.
+
+After one elapsed window, the current count becomes the previous count.
+After two or more elapsed windows, the old history no longer contributes.
+
+`remaining` is the whole-request allowance left under the weighted estimate.
+
+`reset_after` is the time until the current counter window ends.
+It does not promise that previous usage stops affecting the next window.
+
+`retry_after` accounts for the decay needed to admit another request and
+may extend beyond the current window.
+
+## Configuration updates
+
+The limit can change while preserving current and previous counts.
+
+Changing the window duration is rejected with `WindowChangeNotAllowed`
+through `SlidingCounterWindowError`.
+
+Create a new limiter when a different window duration is required.
+
+## Keys, memory, and time
+
+The default key and counter types are `String` and `u64`.
+
+Each tracked key stores constant-sized algorithm state. Key entries are
+retained until `remove_key` is called or the limiter is dropped.
+
+Use `Arc` to share one instance between threads.
+
+`try_acquire_at` accepts explicit timestamps. Supply nondecreasing
+timestamps for each key in processing order.
+
+## Errors
+
+Construction rejects zero limits and zero windows.
+
+Operations can report a poisoned lock, unsupported window changes,
+counter conversion failures, duration conversion failures, or overflow in
+weighted arithmetic.
+
+Large counter values and long durations can exceed the internal `u128`
+multiplication range even when each input is individually representable.
+
+## License
+
+Licensed under the [MIT License](LICENSE).

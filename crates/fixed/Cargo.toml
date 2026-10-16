@@ -2,6 +2,11 @@
 name = "pacekeeper-fixed"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "An in-memory fixed-window rate limiter"
+readme = "README.md"
+keywords = ["rate-limiting", "rate-limiter", "fixed-window"]
 exclude = ["/tests"]
 
 [dependencies]

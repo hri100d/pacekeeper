@@ -2,6 +2,11 @@
 name = "pacekeeper-core"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Shared types, traits, and in-memory engines for Pacekeeper rate limiters"
+readme = "README.md"
+keywords = ["rate-limiting", "rate-limiter"]
 
 [dependencies]
 num-traits.workspace = true
