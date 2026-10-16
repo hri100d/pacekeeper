@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  checks:
+    name: Rust checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run Clippy
+        run: >
+          cargo clippy
+          --workspace
+          --all-targets
+          --all-features
+          --locked
+          -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Check individual public features
+        shell: bash
+        run: |
+          cargo check -p pacekeeper --no-default-features --locked
+
+          for feature in \
+            fixed \
+            sliding-log \
+            sliding-counter \
+            bucket \
+            bucket-redis \
+            bucket-redis-cluster
+          do
+            cargo check -p pacekeeper \
+              --no-default-features \
+              --features "$feature" \
+              --locked
+          done
+
+      - name: Test individual bucket features
+        shell: bash
+        run: |
+          cargo test -p pacekeeper-bucket \
+            --no-default-features \
+            --locked
+
+          for feature in memory redis redis-cluster
+          do
+            cargo test -p pacekeeper-bucket \
+              --no-default-features \
+              --features "$feature" \
+              --locked
+          done
+
+      - name: Run Redis Docker tests
+        run: >
+          cargo test -p pacekeeper-bucket
+          --all-features
+          --test redis_docker
+          --locked
+          -- --ignored --nocapture
+
+      - name: Check documentation
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: >
+          cargo doc
+          --workspace
+          --all-features
+          --no-deps
+          --locked
+
+      - name: Build release
+        run: cargo build --workspace --all-features --release --locked
