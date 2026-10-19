@@ -7,8 +7,7 @@ use crate::{Counter, Decision, WindowConfig};
 /// `new` initializes state without consuming a request.
 /// The engine subsequently calls `try_accept` for the incoming request.
 ///
-/// Configuration updates preserve states. Override
-/// `validate_config_change` to reject incompatible changes.
+/// The built-in in-memory engine uses a fixed configuration for its lifetime.
 ///
 /// Implementations automatically receive an
 /// `InMemoryState<WindowConfig<T>>` implementation.
@@ -23,13 +22,6 @@ pub trait State<T: Counter>: Sized {
         limit: T,
         window: Duration,
     ) -> Result<Decision<T>, Self::Error>;
-
-    fn validate_config_change(
-        _current: &WindowConfig<T>,
-        _next: &WindowConfig<T>,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 
 /// Per-key state used by the generic in-memory engine.
@@ -40,8 +32,7 @@ pub trait State<T: Counter>: Sized {
 /// Methods run while the engine's mutex is held. Avoid blocking I/O or
 /// re-entering the same limiter from these methods.
 ///
-/// Override `validate_config_change` when existing state cannot safely
-/// interpret a different configuration. The default accepts all changes.
+/// The built-in engine does not replace its configuration after construction.
 pub trait InMemoryState<Config>: Sized {
     type Counter: Counter;
     type Error;
@@ -53,10 +44,6 @@ pub trait InMemoryState<Config>: Sized {
         now: Instant,
         config: &Config,
     ) -> Result<Decision<Self::Counter>, Self::Error>;
-
-    fn validate_config_change(_current: &Config, _next: &Config) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 
 impl<T, S> InMemoryState<WindowConfig<T>> for S
@@ -77,12 +64,5 @@ where
         config: &WindowConfig<T>,
     ) -> Result<Decision<T>, Self::Error> {
         <S as State<T>>::try_accept(self, now, config.limit(), config.window())
-    }
-
-    fn validate_config_change(
-        current: &WindowConfig<T>,
-        next: &WindowConfig<T>,
-    ) -> Result<(), Self::Error> {
-        <S as State<T>>::validate_config_change(current, next)
     }
 }

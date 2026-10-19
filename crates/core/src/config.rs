@@ -5,8 +5,7 @@ use crate::{ConfigError, Counter};
 /// Validated configuration for a window-based rate limiter.
 ///
 /// The limit and window duration are both nonzero.
-/// Algorithm-specific restrictions on configuration updates are checked
-/// by the limiter applying the configuration.
+/// In-memory limiters retain their configuration for their entire lifetime.
 #[derive(Debug, Clone)]
 pub struct WindowConfig<T: Counter = u64> {
     limit: T,

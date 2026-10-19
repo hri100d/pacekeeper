@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use pacekeeper_core::{Counter, Decision, State, WindowConfig};
+use pacekeeper_core::{Counter, Decision, State};
 
 use crate::WindowStateError;
 
@@ -20,17 +20,6 @@ impl<T: Counter> State<T> for WindowState<T> {
             current_accepted: T::zero(),
             previous_accepted: T::zero(),
         }
-    }
-
-    fn validate_config_change(
-        current: &WindowConfig<T>,
-        next: &WindowConfig<T>,
-    ) -> Result<(), Self::Error> {
-        if current.window() != next.window() {
-            return Err(WindowStateError::WindowChangeNotAllowed);
-        }
-
-        Ok(())
     }
 
     fn try_accept(

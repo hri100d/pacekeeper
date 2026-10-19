@@ -63,17 +63,17 @@ With a limit of three requests per minute, requests accepted at seconds
 It is not the time until the entire allowance is restored.
 
 `retry_after` is the time until enough requests expire to admit one more.
-This matters when the configured limit has been lowered below current usage.
 
-## Configuration updates
+## Configuration
 
-`update_config` can change the request limit while preserving timestamps.
+The limit and window duration are fixed at construction. `config()` returns
+a configuration value directly without acquiring the state mutex.
 
-The window duration cannot change on an existing limiter.
-Such an update returns `WindowChangeNotAllowed` through
-`SlidingLogWindowError`.
+Create a new limiter to change the policy. The new instance starts with
+empty usage state; existing history is not transferred.
 
-Create a new limiter when changing the window duration.
+See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CHANGELOG.md)
+for version history and migration instructions.
 
 ## Memory and cleanup
 
@@ -102,8 +102,8 @@ Use `Arc` to share an instance between threads.
 
 Construction rejects zero limits and zero windows.
 
-Operations can report a poisoned lock, a counter conversion failure, or
-an unsupported window-duration change.
+Acquisition can report a poisoned lock or a counter conversion failure.
+Removal can report a poisoned lock. Configuration reads do not return errors.
 
 ## License
 

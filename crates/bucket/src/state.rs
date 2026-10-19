@@ -91,15 +91,4 @@ impl<C: BucketCounter, R: BucketCounter> pacekeeper_core::InMemoryState<BucketCo
     ) -> Result<Decision<C>, Self::Error> {
         BucketState::try_accept(self, now, config)
     }
-
-    fn validate_config_change(
-        current: &BucketConfig<C, R>,
-        next: &BucketConfig<C, R>,
-    ) -> Result<(), Self::Error> {
-        if current != next {
-            return Err(BucketError::ConfigMismatch);
-        }
-
-        Ok(())
-    }
 }

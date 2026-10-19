@@ -19,6 +19,7 @@ use crate::{BucketConfig, BucketCounter, BucketError, state::BucketState};
 ///
 /// The limiter retains idle key entries until explicitly removed.
 /// Share an instance with `Arc` when usage should be shared across threads.
+/// Configuration is fixed at construction; a new instance starts fresh usage.
 pub struct TokenBucket<K: Key = String, C: BucketCounter = u64, R: BucketCounter = u64> {
     inner: InMemoryLimiter<K, BucketConfig<C, R>, BucketState>,
 }
@@ -50,13 +51,11 @@ impl<K: Key, C: BucketCounter, R: BucketCounter> TokenBucket<K, C, R> {
         }
     }
 
-    /// Returns a copy of the limiter's configuration.
+    /// Returns a copy of the fixed configuration without locking state.
     ///
-    /// # Errors
-    ///
-    /// Returns `BucketError::StateUnavailable` if the mutex is poisoned.
-    pub fn config(&self) -> Result<BucketConfig<C, R>, BucketError> {
-        self.inner.config().map_err(Into::into)
+    /// This remains available if the state mutex is poisoned.
+    pub fn config(&self) -> BucketConfig<C, R> {
+        self.inner.config()
     }
 
     /// Attempts to consume one token using the current monotonic time.

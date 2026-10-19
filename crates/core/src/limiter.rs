@@ -41,6 +41,8 @@ pub trait RateLimiter<Q: ?Sized, T: Counter> {
 ///
 /// Wraps `InMemoryLimiter` with `WindowConfig` and a `State` implementation.
 /// Algorithm crates generally expose a concrete wrapper around this type.
+/// Configuration is fixed at construction; acquisitions and removals share
+/// one state mutex, while configuration reads do not take that lock.
 pub struct InMemoryWindowLimiter<K: Key, T: Counter, S: State<T>> {
     inner: InMemoryLimiter<K, WindowConfig<T>, S>,
 }
@@ -61,12 +63,9 @@ where
         }
     }
 
-    pub fn config(&self) -> Result<WindowConfig<T>, RateLimiterError<S::Error>> {
-        self.inner.config().map_err(Into::into)
-    }
-
-    pub fn update_config(&self, config: WindowConfig<T>) -> Result<(), RateLimiterError<S::Error>> {
-        self.inner.update_config(config).map_err(Into::into)
+    /// Returns a copy of the fixed configuration without locking state.
+    pub fn config(&self) -> WindowConfig<T> {
+        self.inner.config()
     }
 
     pub fn try_acquire<Q>(&self, key: &Q) -> Result<Decision<T>, RateLimiterError<S::Error>>
@@ -201,55 +200,42 @@ mod limiter_tests {
     }
 
     #[test]
-    fn config_returns_an_independent_snapshot() {
+    fn configuration_reads_do_not_wait_for_the_state_mutex() {
+        use std::sync::{Arc, mpsc};
+
         let window = Duration::from_secs(60);
-        let limiter = Limiter::new_with_config(WindowConfig::new(3, window).unwrap());
+        let limiter = Arc::new(Limiter::new(3, window).unwrap());
+        let guard = limiter.inner.inner.windows.lock().unwrap();
+        let (sender, receiver) = mpsc::channel();
+        let reader = Arc::clone(&limiter);
+        let worker = std::thread::spawn(move || {
+            sender.send(reader.config()).unwrap();
+        });
 
-        let snapshot = limiter.config().unwrap();
-
-        limiter
-            .update_config(WindowConfig::new(5, window).unwrap())
-            .unwrap();
-
-        assert_eq!(snapshot.limit(), 3);
-        assert_eq!(snapshot.window(), window);
-        assert_eq!(limiter.config().unwrap().limit(), 5);
+        let received = receiver.recv_timeout(Duration::from_secs(5));
+        // Release before joining so a regression fails instead of deadlocking.
+        drop(guard);
+        worker.join().unwrap();
+        let config = received.expect("configuration read must not wait for state");
+        assert_eq!(config.limit(), 3);
+        assert_eq!(config.window(), window);
     }
 
     #[test]
-    fn forwards_inputs_and_preserves_state_across_config_updates() {
+    fn forwards_fixed_configuration_and_reuses_existing_state() {
         let window = Duration::from_secs(60);
         let limiter = Limiter::new(3, window).unwrap();
         let start = Instant::now();
-
-        assert_eq!(
-            limiter.try_acquire_at("a", start).unwrap(),
-            Decision::Allowed {
-                remaining: 2,
-                reset_after: window,
-            }
-        );
-
-        limiter
-            .update_config(WindowConfig::new(5, window).unwrap())
-            .unwrap();
-
         let later = start + Duration::from_secs(10);
 
-        assert_eq!(
-            limiter.try_acquire_at("a", later).unwrap(),
-            Decision::Allowed {
-                remaining: 4,
-                reset_after: window,
-            }
-        );
+        limiter.try_acquire_at("a", start).unwrap();
+        limiter.try_acquire_at("a", later).unwrap();
 
-        let inner = limiter.inner.inner.lock().unwrap();
-        let state = inner.windows.get("a").unwrap();
-
+        let windows = limiter.inner.inner.windows.lock().unwrap();
+        let state = windows.get("a").unwrap();
         assert_eq!(state.created_at, start);
         assert_eq!(state.calls, 2);
-        assert_eq!(state.last_input, Some((later, 5, window)));
+        assert_eq!(state.last_input, Some((later, 3, window)));
     }
 
     #[test]
@@ -264,7 +250,7 @@ mod limiter_tests {
                 reads += 1;
 
                 assert!(matches!(
-                    limiter.inner.inner.try_lock(),
+                    limiter.inner.inner.windows.try_lock(),
                     Err(TryLockError::WouldBlock)
                 ));
 
@@ -274,8 +260,8 @@ mod limiter_tests {
 
         assert_eq!(reads, 1);
 
-        let inner = limiter.inner.inner.lock().unwrap();
-        assert_eq!(inner.windows.get("a").unwrap().created_at, now);
+        let windows = limiter.inner.inner.windows.lock().unwrap();
+        assert_eq!(windows.get("a").unwrap().created_at, now);
     }
 
     #[test]
@@ -315,16 +301,20 @@ mod limiter_tests {
     }
 
     #[test]
-    fn poisoned_mutex_returns_errors_from_all_operations() {
+    fn poisoned_mutex_blocks_state_operations_but_not_configuration_reads() {
         let window = Duration::from_secs(60);
         let limiter = Limiter::new(3, window).unwrap();
 
         let panic = catch_unwind(AssertUnwindSafe(|| {
-            let _guard = limiter.inner.inner.lock().unwrap();
+            let _guard = limiter.inner.inner.windows.lock().unwrap();
             panic!("deliberately poison the mutex");
         }));
 
         assert!(panic.is_err());
+
+        let config = limiter.config();
+        assert_eq!(config.limit(), 3);
+        assert_eq!(config.window(), window);
 
         assert!(matches!(
             limiter.try_acquire("a"),
@@ -338,16 +328,6 @@ mod limiter_tests {
 
         assert!(matches!(
             limiter.remove_key("a"),
-            Err(RateLimiterError::StateUnavailable)
-        ));
-
-        assert!(matches!(
-            limiter.config(),
-            Err(RateLimiterError::StateUnavailable)
-        ));
-
-        assert!(matches!(
-            limiter.update_config(WindowConfig::new(5, window).unwrap()),
             Err(RateLimiterError::StateUnavailable)
         ));
     }

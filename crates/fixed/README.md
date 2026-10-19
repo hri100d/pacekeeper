@@ -57,34 +57,27 @@ window expires.
 A fixed window can allow a burst near the end of one window followed by
 another burst in the next window.
 
-## Configuration updates
+## Configuration
+
+Configuration is fixed when the limiter is created.
 
 ```rust
 use std::time::Duration;
-
 use pacekeeper_core::WindowConfig;
 use pacekeeper_fixed::FixedRateLimiter;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let limiter = FixedRateLimiter::<String>::new(
-        100,
-        Duration::from_secs(60),
-    )?;
+let config = WindowConfig::new(100u64, Duration::from_secs(60)).unwrap();
+let limiter = FixedRateLimiter::<String>::new_with_config(config);
 
-    limiter.update_config(WindowConfig::new(
-        200,
-        Duration::from_secs(60),
-    )?)?;
-
-    Ok(())
-}
+let configured = limiter.config();
+assert_eq!(configured.limit(), 100);
 ```
 
-Both the limit and window duration can change.
+`config()` returns a value directly and does not acquire the state mutex.
+To change the policy, create a new limiter. It starts with empty usage state.
 
-Updating configuration preserves existing counters and window starts.
-Subsequent acquisitions evaluate that state using the new configuration.
-Lowering a limit does not erase already accepted requests.
+See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CHANGELOG.md)
+for version history and migration instructions.
 
 ## Keys and concurrency
 

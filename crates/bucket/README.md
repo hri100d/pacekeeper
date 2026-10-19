@@ -178,6 +178,13 @@ same configuration type.
 
 Configuration cannot be updated through the public token-bucket APIs.
 
+The in-memory `config()` accessor returns a configuration value without
+acquiring the state mutex. Creating a replacement in-memory limiter starts
+with full buckets on first access; existing usage is not transferred.
+
+See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CHANGELOG.md)
+for version history and migration instructions.
+
 ## Decisions
 
 Every allowed acquisition consumes exactly one token.

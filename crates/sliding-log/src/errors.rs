@@ -5,7 +5,6 @@ use pacekeeper_core::RateLimiterError;
 #[derive(Debug)]
 pub enum WindowStateError {
     CounterOverflow,
-    WindowChangeNotAllowed,
 }
 
 impl fmt::Display for WindowStateError {
@@ -15,9 +14,6 @@ impl fmt::Display for WindowStateError {
                 f,
                 "request count cannot be represented by the target integer type"
             ),
-            Self::WindowChangeNotAllowed => {
-                write!(f, "the sliding-log window duration cannot be changed")
-            }
         }
     }
 }

@@ -83,14 +83,16 @@ It does not promise that previous usage stops affecting the next window.
 `retry_after` accounts for the decay needed to admit another request and
 may extend beyond the current window.
 
-## Configuration updates
+## Configuration
 
-The limit can change while preserving current and previous counts.
+The limit and window duration are fixed at construction. `config()` returns
+a configuration value directly without acquiring the state mutex.
 
-Changing the window duration is rejected with `WindowChangeNotAllowed`
-through `SlidingCounterWindowError`.
+Create a new limiter to change the policy. The new instance starts with
+empty usage state; existing history is not transferred.
 
-Create a new limiter when a different window duration is required.
+See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CHANGELOG.md)
+for version history and migration instructions.
 
 ## Keys, memory, and time
 
@@ -108,9 +110,9 @@ timestamps for each key in processing order.
 
 Construction rejects zero limits and zero windows.
 
-Operations can report a poisoned lock, unsupported window changes,
-counter conversion failures, duration conversion failures, or overflow in
-weighted arithmetic.
+Acquisition can report a poisoned lock, counter conversion failures,
+duration conversion failures, or overflow in weighted arithmetic.
+Removal can report a poisoned lock. Configuration reads do not return errors.
 
 Large counter values and long durations can exceed the internal `u128`
 multiplication range even when each input is individually representable.

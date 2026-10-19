@@ -5,7 +5,6 @@ use pacekeeper_core::RateLimiterError;
 #[derive(Debug)]
 pub enum WindowStateError {
     CounterOverflow,
-    WindowChangeNotAllowed,
     DurationOverflow,
     ArithmeticOverflow,
 }
@@ -22,9 +21,6 @@ impl fmt::Display for WindowStateError {
             }
             Self::DurationOverflow => {
                 write!(f, "calculated time cannot be represented")
-            }
-            Self::WindowChangeNotAllowed => {
-                write!(f, "the sliding-counter window duration cannot be changed")
             }
         }
     }

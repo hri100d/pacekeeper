@@ -91,7 +91,9 @@ Create the limiter once and reuse it across requests. Creating a new
 in-memory limiter for every request also creates fresh usage state.
 
 Use `Arc` to share an in-memory limiter between threads. Its internal mutex
-protects configuration and per-key state.
+protects per-key state. Configuration is fixed at construction and can be
+read without acquiring that mutex. All keys currently share the same state
+lock; sharding and snapshot recovery are not implemented.
 
 ## Choosing an algorithm
 
@@ -155,20 +157,24 @@ expiration margin. A missing key represents a full bucket.
 
 ## Configuration and time
 
-Fixed-window limiters support changing the limit and window duration
-without clearing existing state.
+All public limiter instances have fixed configuration. For in-memory
+limiters, `config()` returns a configuration value directly, without a
+`Result` or a state lock.
 
-Sliding-log and sliding-counter limiters support changing the limit, but
-reject changes to the window duration.
-
-Token-bucket configuration is fixed for the lifetime of the public limiter
-instance.
+To use a different policy, construct a new limiter. An in-memory replacement
+starts with empty usage state; it does not preserve the old limiter's counters
+or history. Redis instances must still match the policy of existing keys.
 
 In-memory APIs provide `try_acquire_at` for explicit timestamps. Supply
 nondecreasing timestamps for each key in the order calls are processed.
 
 Redis buckets use the Redis server's clock and do not expose
 `try_acquire_at`.
+
+## Release history
+
+See [CHANGELOG.md](CHANGELOG.md) for version history, unreleased changes,
+and migration instructions.
 
 ## Redis behavior
 

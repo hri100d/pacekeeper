@@ -93,11 +93,24 @@ Types implementing `State<T>` automatically receive an
 State construction should initialize the algorithm without consuming the
 incoming request. The engine calls `try_accept` once after insertion.
 
-The engine serializes operations through one mutex. It reads its automatic
-clock after acquiring that mutex.
+The engine serializes acquisitions and removals through one state mutex.
+It reads its automatic clock after acquiring that mutex.
 
-Configuration updates preserve stored states. The state's
-`validate_config_change` hook can reject incompatible changes.
+Configuration is fixed at construction and stored outside the state mutex.
+`config()` clones the configuration without taking that lock, even if it is
+poisoned. Only this accessor requires `Config: Clone`; state operations do not.
+
+The constructor takes an owned configuration and stores it directly, without
+an internal `Arc` or a separate allocation for the configuration wrapper.
+Acquisitions borrow that stored value; they do not clone it. Share an entire
+limiter using `Arc<Limiter>` to share both policy and usage across threads.
+For the generic engine, sharing across threads requires `Config: Send + Sync`
+in addition to the appropriate bounds on keys and state.
+
+Constructing a replacement engine starts with empty state.
+
+See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CHANGELOG.md)
+for version history and migration instructions.
 
 ## State lifetime
 

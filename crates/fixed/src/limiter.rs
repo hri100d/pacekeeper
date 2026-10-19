@@ -18,6 +18,8 @@ use pacekeeper_core::{
 ///
 /// Share an instance with `Arc` when multiple threads should share usage.
 /// Separate instances maintain independent state.
+/// Configuration is fixed at construction. Creating a replacement limiter
+/// starts with empty usage state.
 ///
 /// Key entries remain stored until removed or until the limiter is dropped.
 pub struct Limiter<K: Key = String, T: Counter = u64> {
@@ -45,25 +47,11 @@ impl<K: Key, T: Counter> Limiter<K, T> {
         }
     }
 
-    /// Returns an independent snapshot of the current configuration.
+    /// Returns a copy of the fixed configuration without locking state.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if the internal mutex is poisoned.
-    pub fn config(&self) -> Result<WindowConfig<T>, LimiterError> {
+    /// This remains available if the state mutex is poisoned.
+    pub fn config(&self) -> WindowConfig<T> {
         self.inner.config()
-    }
-
-    /// Replaces the configuration while preserving existing usage.
-    ///
-    /// Existing counters and window starts are retained. Subsequent
-    /// acquisitions evaluate them using the new limit and duration.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the internal mutex is poisoned.
-    pub fn update_config(&self, config: WindowConfig<T>) -> Result<(), LimiterError> {
-        self.inner.update_config(config)
     }
 
     /// Attempts to acquire one request allowance using the current time.

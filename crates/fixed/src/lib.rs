@@ -3,7 +3,7 @@
 //! Each key has an independent counter and window start. An acquisition
 //! after expiration starts a new window at that acquisition's timestamp.
 //!
-//! Configuration updates preserve usage. Idle key entries remain stored
+//! Configuration is fixed at construction. Idle key entries remain stored
 //! until explicitly removed.
 //!
 //! # Example

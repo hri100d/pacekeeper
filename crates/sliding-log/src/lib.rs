@@ -3,7 +3,7 @@
 //! Accepted requests are recorded individually and expire when their age
 //! reaches the configured window duration.
 //!
-//! The request limit can change, but the window duration cannot.
+//! The request limit and window duration are fixed at construction.
 //! Explicit timestamps must be nondecreasing for each key.
 //!
 //! An allowed decision's `reset_after` is the time until the oldest
