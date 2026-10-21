@@ -16,21 +16,21 @@ Enable one limiter:
 
 ```toml
 [dependencies]
-pacekeeper = { version = "0.1", features = ["fixed"] }
+pacekeeper = { version = "0.2", features = ["fixed"] }
 ```
 
 Enable multiple limiters:
 
 ```toml
 [dependencies]
-pacekeeper = { version = "0.1", features = ["fixed", "bucket"] }
+pacekeeper = { version = "0.2", features = ["fixed", "bucket"] }
 ```
 
 Enable every implementation:
 
 ```toml
 [dependencies]
-pacekeeper = { version = "0.1", features = ["all"] }
+pacekeeper = { version = "0.2", features = ["all"] }
 ```
 
 No limiter features are enabled by default.
@@ -90,10 +90,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 Create the limiter once and reuse it across requests. Creating a new
 in-memory limiter for every request also creates fresh usage state.
 
-Use `Arc` to share an in-memory limiter between threads. Its internal mutex
-protects per-key state. Configuration is fixed at construction and can be
-read without acquiring that mutex. All keys currently share the same state
-lock; sharding and snapshot recovery are not implemented.
+Use `Arc` to share an in-memory limiter between threads. Configuration is
+fixed at construction and can be read without acquiring a state lock.
+Existing constructors use one shard. For concurrent workloads, use
+`new_with_config_and_shards(config, shard_count)` on any in-memory limiter.
+The count must be a nonzero power of two, such as 1, 2, 4, or 8.
+Keys in different shards can be processed concurrently; keys in the same
+shard share a mutex.
+Snapshot recovery is not implemented.
+
+Sharding helps concurrent requests spread across keys. Requests for the same
+key still serialize, and additional shards allocate more map and lock storage.
 
 ## Choosing an algorithm
 
@@ -173,8 +180,10 @@ Redis buckets use the Redis server's clock and do not expose
 
 ## Release history
 
-See [CHANGELOG.md](CHANGELOG.md) for version history, unreleased changes,
-and migration instructions.
+Version 0.2.0 adds optional sharding and makes in-memory configuration
+immutable. It includes breaking API changes from 0.1.0.
+See [CHANGELOG.md](CHANGELOG.md#migration-from-010) for migration instructions
+and the full release history.
 
 ## Redis behavior
 

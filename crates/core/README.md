@@ -11,7 +11,7 @@ implementations.
 
 ```toml
 [dependencies]
-pacekeeper-core = "0.1"
+pacekeeper-core = "0.2"
 ```
 
 This crate does not provide a complete rate-limiting algorithm by itself.
@@ -50,6 +50,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `LookupKey<K>`        | Borrowed lookup that can produce an owned key           |
 | `RateLimiterError<E>` | Window-limiter configuration, locking, and state errors |
 | `InMemoryError<E>`    | Generic in-memory engine errors                         |
+| `InvalidShardCount`   | Zero or non-power-of-two shard count                    |
 
 `Counter` has a blanket implementation for types satisfying its unsigned
 integer bounds.
@@ -93,8 +94,14 @@ Types implementing `State<T>` automatically receive an
 State construction should initialize the algorithm without consuming the
 incoming request. The engine calls `try_accept` once after insertion.
 
-The engine serializes acquisitions and removals through one state mutex.
-It reads its automatic clock after acquiring that mutex.
+Existing constructors use one shard. Both engines also expose
+`new_with_config_and_shards(config, shard_count)`, which accepts a nonzero
+power of two and otherwise returns `InvalidShardCount`.
+Each shard owns a hash map and mutex. Acquisitions and removals on different
+shards can run concurrently; operations within one shard are serialized.
+The engine reads its automatic clock after acquiring the key's shard lock.
+A poisoned shard returns the existing `StateUnavailable` error for its keys;
+other shards remain usable.
 
 Configuration is fixed at construction and stored outside the state mutex.
 `config()` clones the configuration without taking that lock, even if it is

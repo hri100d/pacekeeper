@@ -1243,7 +1243,7 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "pacekeeper"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pacekeeper-bucket",
  "pacekeeper-core",
@@ -1254,7 +1254,7 @@ dependencies = [
 
 [[package]]
 name = "pacekeeper-bucket"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pacekeeper-core",
  "redis",
@@ -1264,28 +1264,28 @@ dependencies = [
 
 [[package]]
 name = "pacekeeper-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "num-traits",
 ]
 
 [[package]]
 name = "pacekeeper-fixed"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pacekeeper-core",
 ]
 
 [[package]]
 name = "pacekeeper-sliding-counter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pacekeeper-core",
 ]
 
 [[package]]
 name = "pacekeeper-sliding-log"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "pacekeeper-core",
 ]

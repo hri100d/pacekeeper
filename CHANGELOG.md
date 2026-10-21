@@ -1,12 +1,20 @@
 # Changelog
 
 Notable changes across the Pacekeeper workspace are recorded here, newest
-first. Unreleased changes are not included in the published 0.1.0 packages.
+first.
 
-## Unreleased
+## 0.2.0
 
-These changes target the next breaking release line, 0.2.0. Package versions
-and workspace dependency requirements have not yet been bumped.
+This release includes breaking API changes from 0.1.0. See the migration
+instructions below before upgrading.
+
+### Added
+
+- Optional sharding for all in-memory limiters and the core engines through
+  `new_with_config_and_shards(config, shard_count)`. Counts must be nonzero
+  powers of two; invalid counts return the public `InvalidShardCount` error.
+- Private storage built from standard-library hash maps and mutexes, with
+  independent locks per shard and no additional dependencies.
 
 ### Changed
 
@@ -45,8 +53,9 @@ and workspace dependency requirements have not yet been bumped.
   unchanged. Redis instances accessing an existing bucket must still use
   matching configuration.
 
-The state map still uses one mutex. Sharding and snapshot recovery are not
-part of these changes.
+Existing constructors retain one shard. Opt into multiple shards with the
+new constructor; the count cannot change during the limiter's lifetime.
+Snapshot recovery is not part of these changes.
 
 ## 0.1.0
 

@@ -17,11 +17,12 @@ mod key;
 mod limiter;
 mod memory;
 mod state;
+mod store;
 
 pub use config::WindowConfig;
 pub use counter::Counter;
 pub use decision::Decision;
-pub use errors::{ConfigError, InMemoryError, RateLimiterError};
+pub use errors::{ConfigError, InMemoryError, InvalidShardCount, RateLimiterError};
 pub use key::{Key, LookupKey};
 pub use limiter::{InMemoryWindowLimiter, RateLimiter};
 pub use memory::InMemoryLimiter;

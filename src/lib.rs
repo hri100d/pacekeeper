@@ -28,7 +28,8 @@
 
 pub mod common {
     pub use pacekeeper_core::{
-        ConfigError, Counter, Decision, Key, LookupKey, RateLimiter, RateLimiterError, WindowConfig,
+        ConfigError, Counter, Decision, InvalidShardCount, Key, LookupKey, RateLimiter,
+        RateLimiterError, WindowConfig,
     };
 }
 

@@ -1,13 +1,17 @@
-use std::{borrow::Borrow, collections::HashMap, sync::Mutex, time::Instant};
+use std::{borrow::Borrow, time::Instant};
 
-use crate::{Decision, InMemoryError, InMemoryState, Key, LookupKey};
+use crate::{
+    Decision, InMemoryError, InMemoryState, InvalidShardCount, Key, LookupKey,
+    store::ShardedStorage,
+};
 
-/// A mutex-protected map of per-key algorithm states.
+/// Sharded, mutex-protected storage of per-key algorithm states.
 ///
 /// Intended for implementing synchronous in-memory limiters.
 /// `S` defines state initialization and acquisition through `InMemoryState`.
 ///
-/// All keys share one mutex. Existing-key lookups avoid creating another
+/// Defaults to one shard. With multiple shards, keys on different shards can
+/// be processed concurrently. Existing-key lookups avoid creating another
 /// owned key. Entries are retained until explicitly removed.
 ///
 /// Configuration is fixed at construction and stored outside the state mutex.
@@ -20,7 +24,7 @@ pub struct InMemoryLimiter<K, Config, S> {
 
 pub(crate) struct Inner<K, Config, S> {
     pub(crate) config: Config,
-    pub(crate) windows: Mutex<HashMap<K, S>>,
+    pub(crate) windows: ShardedStorage<K, S>,
 }
 
 impl<K, Config, S> InMemoryLimiter<K, Config, S>
@@ -28,14 +32,30 @@ where
     K: Key,
     S: InMemoryState<Config>,
 {
-    /// Creates an empty limiter with a fixed configuration.
+    /// Creates an empty limiter with a fixed configuration and one shard.
     pub fn new_with_config(config: Config) -> Self {
-        Self {
+        Self::new_with_config_and_shards(config, 1).expect("one is a valid shard count")
+    }
+
+    /// Creates an empty limiter with a fixed configuration and shard count.
+    ///
+    /// The shard count is fixed for the lifetime of the limiter. A poisoned
+    /// shard prevents state operations on all keys routed to that shard;
+    /// other shards and configuration reads remain available.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidShardCount`] for zero or a non-power-of-two count.
+    pub fn new_with_config_and_shards(
+        config: Config,
+        shard_count: usize,
+    ) -> Result<Self, InvalidShardCount> {
+        Ok(Self {
             inner: Inner {
                 config,
-                windows: Mutex::new(HashMap::new()),
+                windows: ShardedStorage::new(shard_count)?,
             },
-        }
+        })
     }
 
     /// Clones the configuration without acquiring the state mutex.
@@ -74,13 +94,7 @@ where
         K: Borrow<Q>,
         Q: Key + ?Sized,
     {
-        let mut windows = self
-            .inner
-            .windows
-            .lock()
-            .map_err(|_| InMemoryError::StateUnavailable)?;
-
-        Ok(windows.remove(key).is_some())
+        self.inner.windows.remove(key).map_err(InMemoryError::from)
     }
 
     pub(crate) fn acquire_with_clock<Q>(
@@ -92,28 +106,16 @@ where
         K: Borrow<Q>,
         Q: LookupKey<K> + ?Sized,
     {
-        let mut windows = self
-            .inner
-            .windows
-            .lock()
-            .map_err(|_| InMemoryError::StateUnavailable)?;
-
         let config = &self.inner.config;
-
-        let now = read_time();
-
-        if let Some(state) = windows.get_mut(key) {
-            return state
-                .try_accept(now, config)
-                .map_err(InMemoryError::StateError);
-        }
-
-        let state = windows
-            .entry(key.to_owned())
-            .or_insert_with(|| S::new(config, now));
-
-        state
-            .try_accept(now, config)
+        self.inner
+            .windows
+            .with_state_mut(
+                key,
+                read_time,
+                |now| S::new(config, now),
+                |state, now| state.try_accept(now, config),
+            )
+            .map_err(InMemoryError::from)?
             .map_err(InMemoryError::StateError)
     }
 }

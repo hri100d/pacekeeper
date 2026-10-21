@@ -8,8 +8,8 @@ Each key has its own window start and accepted-request counter.
 
 ```toml
 [dependencies]
-pacekeeper-fixed = "0.1"
-pacekeeper-core = "0.1"
+pacekeeper-fixed = "0.2"
+pacekeeper-core = "0.2"
 ```
 
 Alternatively, enable `fixed` on the `pacekeeper` crate.
@@ -100,6 +100,12 @@ let decision = limiter.try_acquire(&42).unwrap();
 
 Use `Arc` to share one instance between threads. Separate instances have
 independent state.
+
+Existing constructors use one shard. To select more, pass a validated
+`WindowConfig` to `FixedRateLimiter::new_with_config_and_shards(config, 8)`.
+The count must be a nonzero power of two; otherwise construction returns
+`pacekeeper_core::InvalidShardCount`. Different shards can process requests
+concurrently, while keys in the same shard share a mutex.
 
 ## Explicit time and cleanup
 

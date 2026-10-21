@@ -29,7 +29,7 @@ pub trait State<T: Counter>: Sized {
 /// `new` initializes state without consuming a request.
 /// `try_accept` evaluates and records one acquisition.
 ///
-/// Methods run while the engine's mutex is held. Avoid blocking I/O or
+/// Methods run while the key's shard mutex is held. Avoid blocking I/O or
 /// re-entering the same limiter from these methods.
 ///
 /// The built-in engine does not replace its configuration after construction.

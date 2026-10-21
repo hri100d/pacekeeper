@@ -25,7 +25,7 @@ The `pacekeeper` entry-point crate exposes these as `bucket`,
 
 ```toml
 [dependencies]
-pacekeeper-bucket = { version = "0.1", features = ["memory"] }
+pacekeeper-bucket = { version = "0.2", features = ["memory"] }
 ```
 
 ```rust
@@ -66,11 +66,17 @@ Reuse the instance across requests. Share it with `Arc` when needed.
 Each key has an independent bucket. Idle entries are not automatically
 removed from the in-memory map.
 
+For the in-memory backend, existing constructors use one shard.
+`TokenBucket::new_with_config_and_shards(config, 8)` selects multiple shards.
+The count must be a nonzero power of two; otherwise construction returns
+`pacekeeper_core::InvalidShardCount`. Different shards can process requests
+concurrently, while keys in the same shard share a mutex.
+
 ## Standalone Redis example
 
 ```toml
 [dependencies]
-pacekeeper-bucket = { version = "0.1", features = ["redis"] }
+pacekeeper-bucket = { version = "0.2", features = ["redis"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -108,7 +114,7 @@ rather than constructing one for every request.
 
 ```toml
 [dependencies]
-pacekeeper-bucket = { version = "0.1", features = ["redis-cluster"] }
+pacekeeper-bucket = { version = "0.2", features = ["redis-cluster"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 

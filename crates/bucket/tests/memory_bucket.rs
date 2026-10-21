@@ -172,3 +172,40 @@ fn removing_one_key_preserves_other_keys_usage() {
         },
     );
 }
+
+#[test]
+fn explicit_shards_validate_counts_and_preserve_bucket_usage() {
+    for count in [0, 3, 6] {
+        let config =
+            pacekeeper_bucket::BucketConfig::new(1u64, 1u64, Duration::from_secs(60)).unwrap();
+        assert!(matches!(
+            TokenBucket::<String>::new_with_config_and_shards(config, count),
+            Err(pacekeeper_core::InvalidShardCount)
+        ));
+    }
+    for count in [1, 2, 8, 64] {
+        let config =
+            pacekeeper_bucket::BucketConfig::new(1u64, 1u64, Duration::from_secs(60)).unwrap();
+        let limiter = TokenBucket::<String>::new_with_config_and_shards(config, count).unwrap();
+        let now = Instant::now();
+        for key in ["a", "b"] {
+            assert!(matches!(
+                limiter.try_acquire_at(key, now).unwrap(),
+                Decision::Allowed { remaining: 0, .. }
+            ));
+            assert!(matches!(
+                limiter.try_acquire_at(key, now).unwrap(),
+                Decision::Denied { .. }
+            ));
+        }
+        assert!(limiter.remove_key("a").unwrap());
+        assert!(matches!(
+            limiter.try_acquire_at("a", now).unwrap(),
+            Decision::Allowed { .. }
+        ));
+        assert!(matches!(
+            limiter.try_acquire_at("b", now).unwrap(),
+            Decision::Denied { .. }
+        ));
+    }
+}

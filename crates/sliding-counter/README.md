@@ -10,8 +10,8 @@ the previous window.
 
 ```toml
 [dependencies]
-pacekeeper-sliding-counter = "0.1"
-pacekeeper-core = "0.1"
+pacekeeper-sliding-counter = "0.2"
+pacekeeper-core = "0.2"
 ```
 
 Alternatively, enable `sliding-counter` on the `pacekeeper` crate.
@@ -95,6 +95,12 @@ See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CH
 for version history and migration instructions.
 
 ## Keys, memory, and time
+
+Existing constructors use one shard. To select more, pass a validated
+`WindowConfig` to `SlidingCounterRateLimiter::new_with_config_and_shards(config, 8)`.
+The count must be a nonzero power of two; otherwise construction returns
+`pacekeeper_core::InvalidShardCount`. Different shards can process requests
+concurrently, while keys in the same shard share a mutex.
 
 The default key and counter types are `String` and `u64`.
 

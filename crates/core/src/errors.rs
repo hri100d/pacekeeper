@@ -100,3 +100,28 @@ impl<E> From<InMemoryError<E>> for RateLimiterError<E> {
         }
     }
 }
+
+#[derive(Debug)]
+pub(crate) enum StorageError {
+    StateUnavailable,
+}
+
+impl<E> From<StorageError> for InMemoryError<E> {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::StateUnavailable => Self::StateUnavailable,
+        }
+    }
+}
+
+/// The requested shard count was zero or was not a power of two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidShardCount;
+
+impl fmt::Display for InvalidShardCount {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("shard count must be a nonzero power of two")
+    }
+}
+
+impl Error for InvalidShardCount {}

@@ -9,8 +9,8 @@ requests individually as they leave the rolling window.
 
 ```toml
 [dependencies]
-pacekeeper-sliding-log = "0.1"
-pacekeeper-core = "0.1"
+pacekeeper-sliding-log = "0.2"
+pacekeeper-core = "0.2"
 ```
 
 Alternatively, enable `sliding-log` on the `pacekeeper` crate.
@@ -76,6 +76,12 @@ See the [workspace changelog](https://github.com/hri100d/pacekeeper/blob/main/CH
 for version history and migration instructions.
 
 ## Memory and cleanup
+
+Existing constructors use one shard. To select more, pass a validated
+`WindowConfig` to `SlidingLogRateLimiter::new_with_config_and_shards(config, 8)`.
+The count must be a nonzero power of two; otherwise construction returns
+`pacekeeper_core::InvalidShardCount`. Different shards can process requests
+concurrently, while keys in the same shard share a mutex.
 
 Each key stores a queue of accepted-request timestamps. Memory use grows
 with retained history, so this algorithm uses more memory than a fixed

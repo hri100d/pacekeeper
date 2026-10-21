@@ -8,7 +8,8 @@ use std::{
 };
 
 use pacekeeper_core::{
-    Counter, Decision, InMemoryWindowLimiter, Key, LookupKey, RateLimiter, WindowConfig,
+    Counter, Decision, InMemoryWindowLimiter, InvalidShardCount, Key, LookupKey, RateLimiter,
+    WindowConfig,
 };
 
 /// An in-memory fixed-window rate limiter with independent state per key.
@@ -47,23 +48,40 @@ impl<K: Key, T: Counter> Limiter<K, T> {
         }
     }
 
+    /// Creates an empty limiter with a validated configuration and shard count.
+    ///
+    /// Default constructors use one shard. More shards allow keys in different
+    /// shards to be processed concurrently; the count is fixed at construction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidShardCount`] for zero or a non-power-of-two count.
+    pub fn new_with_config_and_shards(
+        config: WindowConfig<T>,
+        shard_count: usize,
+    ) -> Result<Self, InvalidShardCount> {
+        Ok(Self {
+            inner: Engine::new_with_config_and_shards(config, shard_count)?,
+        })
+    }
+
     /// Returns a copy of the fixed configuration without locking state.
     ///
-    /// This remains available if the state mutex is poisoned.
+    /// This remains available if a shard mutex is poisoned.
     pub fn config(&self) -> WindowConfig<T> {
         self.inner.config()
     }
 
     /// Attempts to acquire one request allowance using the current time.
     ///
-    /// The clock is read after acquiring the internal mutex.
+    /// The clock is read after acquiring the key's shard mutex.
     /// An allowed result has already counted the request.
     ///
     /// Borrowed lookups avoid constructing an owned key for existing entries.
     ///
     /// # Errors
     ///
-    /// Returns an error if the mutex is poisoned or the algorithm cannot
+    /// Returns an error if the key's shard mutex is poisoned or the algorithm cannot
     /// evaluate the request.
     pub fn try_acquire<Q>(&self, key: &Q) -> Result<Decision<T>, LimiterError>
     where
@@ -80,7 +98,7 @@ impl<K: Key, T: Counter> Limiter<K, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the mutex is poisoned or the algorithm cannot
+    /// Returns an error if the key's shard mutex is poisoned or the algorithm cannot
     /// evaluate the request.
     pub fn try_acquire_at<Q>(&self, key: &Q, now: Instant) -> Result<Decision<T>, LimiterError>
     where
@@ -97,7 +115,7 @@ impl<K: Key, T: Counter> Limiter<K, T> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the internal mutex is poisoned.
+    /// Returns an error if the key's shard mutex is poisoned.
     pub fn remove_key<Q>(&self, key: &Q) -> Result<bool, LimiterError>
     where
         K: Borrow<Q>,

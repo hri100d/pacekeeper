@@ -4,7 +4,8 @@ use std::{
 };
 
 use crate::{
-    Counter, Decision, InMemoryLimiter, Key, LookupKey, RateLimiterError, State, WindowConfig,
+    Counter, Decision, InMemoryLimiter, InvalidShardCount, Key, LookupKey, RateLimiterError, State,
+    WindowConfig,
 };
 
 /// A synchronous interface for keyed rate limiting.
@@ -41,8 +42,9 @@ pub trait RateLimiter<Q: ?Sized, T: Counter> {
 ///
 /// Wraps `InMemoryLimiter` with `WindowConfig` and a `State` implementation.
 /// Algorithm crates generally expose a concrete wrapper around this type.
-/// Configuration is fixed at construction; acquisitions and removals share
-/// one state mutex, while configuration reads do not take that lock.
+/// Configuration is fixed at construction. Acquisitions and removals lock
+/// the key's shard; configuration reads do not take a lock. The default is
+/// one shard; use `new_with_config_and_shards` to choose more.
 pub struct InMemoryWindowLimiter<K: Key, T: Counter, S: State<T>> {
     inner: InMemoryLimiter<K, WindowConfig<T>, S>,
 }
@@ -61,6 +63,20 @@ where
         Self {
             inner: InMemoryLimiter::new_with_config(config),
         }
+    }
+
+    /// Creates a window engine with a validated configuration and shard count.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidShardCount`] for zero or a non-power-of-two count.
+    pub fn new_with_config_and_shards(
+        config: WindowConfig<T>,
+        shard_count: usize,
+    ) -> Result<Self, InvalidShardCount> {
+        Ok(Self {
+            inner: InMemoryLimiter::new_with_config_and_shards(config, shard_count)?,
+        })
     }
 
     /// Returns a copy of the fixed configuration without locking state.
@@ -205,7 +221,7 @@ mod limiter_tests {
 
         let window = Duration::from_secs(60);
         let limiter = Arc::new(Limiter::new(3, window).unwrap());
-        let guard = limiter.inner.inner.windows.lock().unwrap();
+        let guard = limiter.inner.inner.windows.lock_for_test("a").unwrap();
         let (sender, receiver) = mpsc::channel();
         let reader = Arc::clone(&limiter);
         let worker = std::thread::spawn(move || {
@@ -231,7 +247,7 @@ mod limiter_tests {
         limiter.try_acquire_at("a", start).unwrap();
         limiter.try_acquire_at("a", later).unwrap();
 
-        let windows = limiter.inner.inner.windows.lock().unwrap();
+        let windows = limiter.inner.inner.windows.lock_for_test("a").unwrap();
         let state = windows.get("a").unwrap();
         assert_eq!(state.created_at, start);
         assert_eq!(state.calls, 2);
@@ -250,7 +266,7 @@ mod limiter_tests {
                 reads += 1;
 
                 assert!(matches!(
-                    limiter.inner.inner.windows.try_lock(),
+                    limiter.inner.inner.windows.try_lock_for_test("a"),
                     Err(TryLockError::WouldBlock)
                 ));
 
@@ -260,7 +276,7 @@ mod limiter_tests {
 
         assert_eq!(reads, 1);
 
-        let windows = limiter.inner.inner.windows.lock().unwrap();
+        let windows = limiter.inner.inner.windows.lock_for_test("a").unwrap();
         assert_eq!(windows.get("a").unwrap().created_at, now);
     }
 
@@ -306,7 +322,7 @@ mod limiter_tests {
         let limiter = Limiter::new(3, window).unwrap();
 
         let panic = catch_unwind(AssertUnwindSafe(|| {
-            let _guard = limiter.inner.inner.windows.lock().unwrap();
+            let _guard = limiter.inner.inner.windows.lock_for_test("a").unwrap();
             panic!("deliberately poison the mutex");
         }));
 

@@ -3,7 +3,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use pacekeeper_core::{Decision, InMemoryLimiter, Key, LookupKey, RateLimiter};
+use pacekeeper_core::{Decision, InMemoryLimiter, InvalidShardCount, Key, LookupKey, RateLimiter};
 
 use crate::{BucketConfig, BucketCounter, BucketError, state::BucketState};
 
@@ -51,9 +51,26 @@ impl<K: Key, C: BucketCounter, R: BucketCounter> TokenBucket<K, C, R> {
         }
     }
 
+    /// Creates an in-memory limiter with a validated policy and shard count.
+    ///
+    /// Default constructors use one shard. Each key starts with a full bucket
+    /// on first access. The shard count is fixed for this instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`InvalidShardCount`] for zero or a non-power-of-two count.
+    pub fn new_with_config_and_shards(
+        config: BucketConfig<C, R>,
+        shard_count: usize,
+    ) -> Result<Self, InvalidShardCount> {
+        Ok(Self {
+            inner: InMemoryLimiter::new_with_config_and_shards(config, shard_count)?,
+        })
+    }
+
     /// Returns a copy of the fixed configuration without locking state.
     ///
-    /// This remains available if the state mutex is poisoned.
+    /// This remains available if a shard mutex is poisoned.
     pub fn config(&self) -> BucketConfig<C, R> {
         self.inner.config()
     }
@@ -65,7 +82,7 @@ impl<K: Key, C: BucketCounter, R: BucketCounter> TokenBucket<K, C, R> {
     ///
     /// # Errors
     ///
-    /// Returns an error if the mutex is poisoned or time precedes a timestamp
+    /// Returns an error if the key's shard mutex is poisoned or time precedes a timestamp
     /// previously supplied for this key.
     pub fn try_acquire<Q>(&self, key: &Q) -> Result<Decision<C>, BucketError>
     where
@@ -84,7 +101,7 @@ impl<K: Key, C: BucketCounter, R: BucketCounter> TokenBucket<K, C, R> {
     ///
     /// Returns `BucketError::ClockWentBackwards` for an earlier timestamp,
     /// without changing that bucket's state.
-    /// Returns `BucketError::StateUnavailable` if the mutex is poisoned.
+    /// Returns `BucketError::StateUnavailable` if the key's shard mutex is poisoned.
     pub fn try_acquire_at<Q>(&self, key: &Q, now: Instant) -> Result<Decision<C>, BucketError>
     where
         K: Borrow<Q>,
@@ -99,7 +116,7 @@ impl<K: Key, C: BucketCounter, R: BucketCounter> TokenBucket<K, C, R> {
     ///
     /// # Errors
     ///
-    /// Returns `BucketError::StateUnavailable` if the mutex is poisoned.
+    /// Returns `BucketError::StateUnavailable` if the key's shard mutex is poisoned.
     pub fn remove_key<Q>(&self, key: &Q) -> Result<bool, BucketError>
     where
         K: Borrow<Q>,
